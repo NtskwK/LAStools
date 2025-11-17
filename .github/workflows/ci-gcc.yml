@@ -43,7 +43,7 @@ jobs:
             
           # macOS x64 with Clang (default)
           - os: macos
-            runner: macos-13
+            runner: macos-15-intel
             arch: x64
             compiler: clang
             
@@ -58,12 +58,7 @@ jobs:
             runner: windows-latest
             arch: x64
             compiler: mingw-gcc
-            
-          # Windows ARM64 with MinGW GCC (cross-compile, may not be available)
-          - os: windows
-            runner: windows-latest
-            arch: arm64
-            compiler: mingw-gcc
+
 
     steps:
       - name: Checkout code
