@@ -7,11 +7,17 @@ on:
     branches: [ main, master ]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build-matrix:
     name: ${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.compiler }}
     runs-on: ${{ matrix.runner }}
     continue-on-error: true
+    
+    permissions:
+      contents: read
     
     strategy:
       fail-fast: false
@@ -202,6 +208,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: build-matrix
     if: always()
+    
+    permissions:
+      contents: read
     
     steps:
       - name: Summary
