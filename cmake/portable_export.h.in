@@ -1,0 +1,58 @@
+/*
+===============================================================================
+
+  FILE:  portable_export.h.in
+
+  CONTENTS:
+
+    Portable DLL export/import macros for LAStools - configured by CMake
+
+  PROGRAMMERS:
+
+    GitHub Copilot - Automated portability improvements
+
+  COPYRIGHT:
+
+    (c) 2024, LAStools contributors
+
+    This is free software; you can redistribute and/or modify it under the
+    terms of the Apache Public License 2.0 published by the Apache Software
+    Foundation.
+
+    This software is distributed WITHOUT ANY WARRANTY and without even the
+    implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+===============================================================================
+*/
+#ifndef LASTOOLS_PORTABLE_EXPORT_H
+#define LASTOOLS_PORTABLE_EXPORT_H
+
+/* Define LAStools_API for DLL export/import on Windows, visibility on GCC/Clang */
+#cmakedefine LAStools_BUILD_SHARED
+
+#ifdef LAStools_BUILD_SHARED
+  /* Building or using shared library */
+  #if defined(_WIN32) || defined(_MSC_VER)
+    /* Windows with MSVC or MinGW */
+    #ifdef LAStools_EXPORTS
+      #define LAStools_API __declspec(dllexport)
+    #else
+      #define LAStools_API __declspec(dllimport)
+    #endif
+  #elif defined(__GNUC__) || defined(__clang__)
+    /* GCC or Clang with visibility support */
+    #ifdef LAStools_EXPORTS
+      #define LAStools_API __attribute__((visibility("default")))
+    #else
+      #define LAStools_API
+    #endif
+  #else
+    /* Unknown compiler, no special handling */
+    #define LAStools_API
+  #endif
+#else
+  /* Building or using static library - no export/import needed */
+  #define LAStools_API
+#endif
+
+#endif /* LASTOOLS_PORTABLE_EXPORT_H */

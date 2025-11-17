@@ -50,8 +50,15 @@ LASzip/dll/CMakeFiles
 LASzip/src/CMakeFiles
 src/CMakeFiles
 *.dll
+*.so
+*.dylib
+*.a
+LASlib/lib/
 LASzip/CMakeCache.txt
 src/Makefile
 Makefile
 CMakeFiles
 CMakeCache.txt
+build/
+cmake_install.cmake
+install_manifest.txt

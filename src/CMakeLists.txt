@@ -1,11 +1,16 @@
-if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-format-security -Wno-format-truncation")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-format-security -Wno-format-truncation")
+# Compiler-specific flags for executables
+if(MSVC)
+    # MSVC-specific flags can be added here if needed
+else()
+    # GCC/Clang specific flags
+    if(CMAKE_C_COMPILER_ID MATCHES "GNU")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-format-security -Wno-format-truncation")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-format-security -Wno-format-truncation")
+    endif()
+    add_compile_options(-Wno-deprecated -Wno-write-strings -Wno-unused-result)
 endif()
-if (NOT(MSVC))
-  add_compile_options(-Wno-deprecated -Wno-write-strings -Wno-unused-result)
-endif()
-add_definitions(-DNDEBUG )
+
+add_definitions(-DNDEBUG)
 
 include_directories(../LASzip/include/laszip)
 include_directories(../LASzip/src)

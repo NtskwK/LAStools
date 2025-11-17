@@ -33,6 +33,10 @@
 #include "lasmessage.hpp"
 #include "laszip_common.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 #include <algorithm>
 #include <cmath>
 #include <cstdarg>
