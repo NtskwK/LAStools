@@ -159,7 +159,7 @@ jobs:
         if: matrix.os == 'windows'
         shell: msys2 {0}
         run: |
-          cmake --build build --config Release -- -j
+          cmake --build build --config Release
 
       - name: Run Tests
         if: matrix.os != 'windows'
