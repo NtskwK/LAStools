@@ -148,7 +148,7 @@ jobs:
           cmake -B build -S . \
             -DCMAKE_BUILD_TYPE=Release \
             -DLAStools_BUILD_SHARED=OFF \
-            -G "MinGW Makefiles" || exit 1
+            -G Ninja || exit 1
 
       - name: Build (Linux/macOS)
         if: matrix.os != 'windows'
@@ -174,13 +174,22 @@ jobs:
           cd build
           ctest --output-on-failure --verbose || echo "No tests configured or tests failed"
 
-      - name: List Build Artifacts
-        if: always()
+      - name: List Build Artifacts (Unix)
+        if: always() && matrix.os != 'windows'
         run: |
           echo "=== Build directory structure ==="
-          ls -lR build/ || dir /s build\ || true
+          ls -lR build/ || true
           echo "=== Binary outputs ==="
-          ls -lh bin64/ || dir bin64\ || true
+          ls -lh bin64/ || true
+
+      - name: List Build Artifacts (Windows)
+        if: always() && matrix.os == 'windows'
+        shell: msys2 {0}
+        run: |
+          echo "=== Build directory structure ==="
+          ls -lR build/ || true
+          echo "=== Binary outputs ==="
+          ls -lh bin64/ || true
 
       - name: Upload Build Logs on Failure
         if: failure()
