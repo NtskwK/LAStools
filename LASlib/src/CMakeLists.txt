@@ -1,6 +1,9 @@
-if (NOT(MSVC))
-	add_compile_options(-Wno-deprecated -Wno-write-strings -Wno-unused-result -std=c++11)
+# Compiler-specific flags (in addition to global flags)
+if(NOT MSVC)
+    # GCC/Clang specific flags for this subdirectory
+    add_compile_options(-Wno-deprecated -Wno-write-strings -Wno-unused-result -std=c++11)
 endif()
+
 add_definitions(-DNDEBUG -DUNORDERED -DHAVE_UNORDERED_MAP)
 
 set(LAS_SRC
@@ -73,14 +76,19 @@ add_library(LASlib ${LAS_SRC} ${LAZ_SRC_FULL})
 set_property(TARGET LASlib PROPERTY POSITION_INDEPENDENT_CODE ON)
 set_property(TARGET LASlib PROPERTY CXX_STANDARD 17)
 
-if (BUILD_SHARED_LIBS)
-	target_compile_definitions(LASlib PRIVATE "COMPILE_AS_DLL")
+if(BUILD_SHARED_LIBS)
+    target_compile_definitions(LASlib PRIVATE "COMPILE_AS_DLL")
+    if(NOT MSVC)
+        # For GCC/Clang, set visibility to hidden by default, explicit exports will use visibility("default")
+        target_compile_options(LASlib PRIVATE -fvisibility=hidden)
+    endif()
 endif()
 
 target_include_directories(LASlib PUBLIC
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/LASlib/inc>
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/LASzip/src>
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/LASzip/include/laszip>
+  $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
   $<INSTALL_INTERFACE:include/LASlib>
 )
 set_target_properties(LASlib PROPERTIES
@@ -90,9 +98,10 @@ set_target_properties(LASlib PROPERTIES
 )
 
 if(MSVC)
-   target_compile_options(LASlib PRIVATE /Zi)
+    # MSVC-specific debug info generation
+    target_compile_options(LASlib PRIVATE /Zi)
 
-   # Tell linker to include symbol data
+    # Tell linker to include symbol data
     set_target_properties(LASlib PROPERTIES 
         LINK_FLAGS "/INCREMENTAL:NO /DEBUG /OPT:REF /OPT:ICF"
     )
@@ -102,6 +111,9 @@ if(MSVC)
         COMPILE_PDB_NAME LASlib 
         COMPILE_PDB_OUTPUT_DIR ${CMAKE_BINARY_DIR}
     )
+else()
+    # GCC/Clang: Generate debug info in Release if needed
+    # (Usually handled by CMAKE_BUILD_TYPE, but can be customized here)
 endif()
 
 install(FILES ${LAS_INCLUDES} DESTINATION include/LASlib)

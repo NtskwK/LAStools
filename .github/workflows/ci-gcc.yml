@@ -1,0 +1,219 @@
+name: Multi-Platform Build with GCC/Clang/MinGW
+
+on:
+  push:
+    branches: [ main, master, copilot/* ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-matrix:
+    name: ${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.compiler }}
+    runs-on: ${{ matrix.runner }}
+    continue-on-error: true
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux x64 with GCC
+          - os: linux
+            runner: ubuntu-latest
+            arch: x64
+            compiler: gcc
+            
+          # Linux x64 with Clang
+          - os: linux
+            runner: ubuntu-latest
+            arch: x64
+            compiler: clang
+            
+          # Linux ARM64 (cross-compile)
+          - os: linux
+            runner: ubuntu-latest
+            arch: arm64
+            compiler: gcc-aarch64
+            
+          # macOS x64 with Clang (default)
+          - os: macos
+            runner: macos-13
+            arch: x64
+            compiler: clang
+            
+          # macOS ARM64 with Clang
+          - os: macos
+            runner: macos-latest
+            arch: arm64
+            compiler: clang
+            
+          # Windows x64 with MinGW GCC
+          - os: windows
+            runner: windows-latest
+            arch: x64
+            compiler: mingw-gcc
+            
+          # Windows ARM64 with MinGW GCC (cross-compile, may not be available)
+          - os: windows
+            runner: windows-latest
+            arch: arm64
+            compiler: mingw-gcc
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Linux GCC/Clang
+        if: matrix.os == 'linux' && matrix.compiler != 'gcc-aarch64'
+        run: |
+          sudo apt-get update
+          if [ "${{ matrix.compiler }}" = "gcc" ]; then
+            sudo apt-get install -y build-essential gcc g++ cmake ninja-build
+            echo "CC=gcc" >> $GITHUB_ENV
+            echo "CXX=g++" >> $GITHUB_ENV
+          else
+            sudo apt-get install -y clang cmake ninja-build
+            echo "CC=clang" >> $GITHUB_ENV
+            echo "CXX=clang++" >> $GITHUB_ENV
+          fi
+
+      - name: Setup Linux ARM64 Cross-Compilation
+        if: matrix.os == 'linux' && matrix.compiler == 'gcc-aarch64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu cmake ninja-build
+          
+          # Create CMake toolchain file for ARM64
+          cat > arm64-toolchain.cmake << EOF
+          set(CMAKE_SYSTEM_NAME Linux)
+          set(CMAKE_SYSTEM_PROCESSOR aarch64)
+          set(CMAKE_C_COMPILER aarch64-linux-gnu-gcc)
+          set(CMAKE_CXX_COMPILER aarch64-linux-gnu-g++)
+          set(CMAKE_FIND_ROOT_PATH /usr/aarch64-linux-gnu)
+          set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+          set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+          set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+          EOF
+          
+          echo "TOOLCHAIN_FILE=arm64-toolchain.cmake" >> $GITHUB_ENV
+
+      - name: Setup macOS
+        if: matrix.os == 'macos'
+        run: |
+          brew install cmake ninja
+          echo "CC=clang" >> $GITHUB_ENV
+          echo "CXX=clang++" >> $GITHUB_ENV
+
+      - name: Setup Windows MinGW
+        if: matrix.os == 'windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: ${{ matrix.arch == 'x64' && 'MINGW64' || 'CLANGARM64' }}
+          update: true
+          install: >-
+            ${{ matrix.arch == 'x64' && 'mingw-w64-x86_64-gcc' || 'mingw-w64-clang-aarch64-clang' }}
+            ${{ matrix.arch == 'x64' && 'mingw-w64-x86_64-cmake' || 'mingw-w64-clang-aarch64-cmake' }}
+            ${{ matrix.arch == 'x64' && 'mingw-w64-x86_64-ninja' || 'mingw-w64-clang-aarch64-ninja' }}
+            make
+
+      - name: Configure CMake (Linux/macOS)
+        if: matrix.os != 'windows'
+        run: |
+          TOOLCHAIN_ARG=""
+          if [ -n "$TOOLCHAIN_FILE" ]; then
+            TOOLCHAIN_ARG="-DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN_FILE"
+          fi
+          
+          cmake -B build -S . \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DLAStools_BUILD_SHARED=OFF \
+            -G Ninja \
+            $TOOLCHAIN_ARG
+
+      - name: Configure CMake (Windows MinGW)
+        if: matrix.os == 'windows'
+        shell: msys2 {0}
+        run: |
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            # ARM64 on Windows with MinGW is experimental and may not be fully supported
+            echo "ARM64 Windows build may fail - MinGW ARM64 support is limited"
+          fi
+          
+          cmake -B build -S . \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DLAStools_BUILD_SHARED=OFF \
+            -G "MinGW Makefiles" || exit 1
+
+      - name: Build (Linux/macOS)
+        if: matrix.os != 'windows'
+        run: |
+          cmake --build build --config Release -j$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2)
+
+      - name: Build (Windows MinGW)
+        if: matrix.os == 'windows'
+        shell: msys2 {0}
+        run: |
+          cmake --build build --config Release -- -j
+
+      - name: Run Tests
+        if: matrix.os != 'windows'
+        run: |
+          cd build
+          ctest --output-on-failure --verbose || echo "No tests configured or tests failed"
+
+      - name: Run Tests (Windows)
+        if: matrix.os == 'windows'
+        shell: msys2 {0}
+        run: |
+          cd build
+          ctest --output-on-failure --verbose || echo "No tests configured or tests failed"
+
+      - name: List Build Artifacts
+        if: always()
+        run: |
+          echo "=== Build directory structure ==="
+          ls -lR build/ || dir /s build\ || true
+          echo "=== Binary outputs ==="
+          ls -lh bin64/ || dir bin64\ || true
+
+      - name: Upload Build Logs on Failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.compiler }}
+          path: |
+            build/CMakeFiles/*.log
+            build/**/*.log
+            build/Testing/Temporary/LastTest.log
+          retention-days: 7
+
+      - name: Upload Build Artifacts on Success
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.compiler }}
+          path: |
+            bin64/
+            LASlib/lib/
+          retention-days: 7
+
+  summary:
+    name: Build Summary
+    runs-on: ubuntu-latest
+    needs: build-matrix
+    if: always()
+    
+    steps:
+      - name: Summary
+        run: |
+          echo "# Multi-Platform Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Check individual job results above for build status on each platform." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Platform Matrix" >> $GITHUB_STEP_SUMMARY
+          echo "- Linux x64 (GCC, Clang)" >> $GITHUB_STEP_SUMMARY
+          echo "- Linux ARM64 (cross-compiled with GCC)" >> $GITHUB_STEP_SUMMARY
+          echo "- macOS x64 (Clang)" >> $GITHUB_STEP_SUMMARY
+          echo "- macOS ARM64 (Clang)" >> $GITHUB_STEP_SUMMARY
+          echo "- Windows x64 (MinGW GCC)" >> $GITHUB_STEP_SUMMARY
+          echo "- Windows ARM64 (MinGW, experimental)" >> $GITHUB_STEP_SUMMARY

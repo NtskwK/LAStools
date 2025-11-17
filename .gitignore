@@ -55,3 +55,6 @@ src/Makefile
 Makefile
 CMakeFiles
 CMakeCache.txt
+build/
+cmake_install.cmake
+install_manifest.txt
